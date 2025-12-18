@@ -1,0 +1,10 @@
+# RAG系统依赖包
+qdrant-client==1.7.0
+sentence-transformers>=2.7.0
+transformers>=4.36.0
+torch>=2.0.0
+fastapi>=0.115.0
+uvicorn>=0.27.0
+pydantic>=2.12.0
+python-multipart>=0.0.6
+numpy>=1.24.0
