@@ -93,7 +93,7 @@
 
 - Python 3.8+
 - CUDA 11.0+（推荐，用于 GPU 加速）
-- 48GB+ 显存（运行 BGE-M3 模型和glm4-9b-chat）
+- 24GB+ 显存（运行 BGE-M3 模型和glm4-9b-chat）
 
 ### 1. 克隆仓库
 
