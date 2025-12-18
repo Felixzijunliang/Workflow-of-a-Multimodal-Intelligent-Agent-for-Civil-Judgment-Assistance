@@ -21,7 +21,7 @@ class LegalAssistantService:
 
     def __init__(
         self,
-        llm_api_url: str = "http://104.224.158.247:8007/v1",
+        llm_api_url: str = "你的llm地址",
         llm_model: str = "glm-4-9b-chat-tool-enabled",
         rag_api_url: str = "http://127.0.0.1:8001"
     ):
@@ -617,7 +617,7 @@ def main():
         sys.exit(1)
 
     # 从环境变量读取配置（如果没有设置则使用远程服务器）
-    llm_api_url = os.getenv("LLM_API_URL", "http://104.224.158.247:8007/v1")
+    llm_api_url = os.getenv("LLM_API_URL", "你llm的位置")
     llm_model = os.getenv("LLM_MODEL", "glm-4-9b-chat-tool-enabled")
     rag_api_url = os.getenv("RAG_API_URL", "http://127.0.0.1:8001")
 
