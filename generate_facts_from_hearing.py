@@ -15,7 +15,7 @@ from pathlib import Path
 class HearingFactsGenerator:
     """基于开庭笔录的案件事实生成器"""
 
-    def __init__(self, api_url="http://104.224.158.247:8007/v1", model="glm-4-9b-chat-tool-enabled"):
+    def __init__(self, api_url="你的llm地址", model="glm-4-9b-chat-tool-enabled"):
         self.api_url = api_url
         self.model = model
         # 参考模板路径（通用民事判决书案件事实撰写模板）
@@ -262,7 +262,7 @@ def main():
 
     # 创建生成器并运行
     generator = HearingFactsGenerator(
-        api_url="http://104.224.158.247:8007/v1",
+        api_url="你的llm地址",
         model="glm-4-9b-chat-tool-enabled"
     )
 
