@@ -14,6 +14,7 @@
   <img src="https://img.shields.io/badge/Embedding-BGE--M3-orange.svg" alt="BGE-M3">
   <img src="https://img.shields.io/badge/OCR-PaddleOCR-red.svg" alt="PaddleOCR">
   <img src="https://img.shields.io/badge/VectorDB-Qdrant-purple.svg" alt="Qdrant">
+  <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="MIT License">
 </p>
 
 ---
@@ -35,6 +36,7 @@
 | ⚡ 矛盾点识别 | LLM 智能分析原被告双方的核心争议焦点 |
 | 📜 法律检索 | 基于 BGE-M3 向量模型检索相关法律条文 |
 | ✍️ 判决书生成 | 自动生成判决书"案件事实"等核心内容 |
+| 📝 开庭笔录生成 | 基于开庭笔录自动生成判决书案件事实部分 |
 | 💡 判案建议 | 综合分析案件，提供专业辅助判案意见 |
 
 ---
@@ -177,7 +179,25 @@ python llm_service.py ./案件号
 
 ---
 
-### 使用场景二：API 调用检索法律法规
+### 使用场景二：基于开庭笔录生成案件事实
+
+当你有开庭笔录文本时，可以直接基于开庭笔录生成判决书的案件事实部分：
+
+```bash
+python generate_facts_from_hearing.py ./开庭笔录.txt
+```
+
+系统会自动：
+1. 读取开庭笔录内容
+2. 参考标准判决书案件事实撰写模板
+3. 提取原被告陈述、证据、争议焦点等关键信息
+4. 生成结构规范的案件事实部分
+
+输出文件默认保存在开庭笔录同目录下，命名为 `开庭笔录_案件事实部分.txt`。
+
+---
+
+### 使用场景三：API 调用检索法律法规
 
 ```python
 import requests
@@ -220,24 +240,27 @@ print(result["context"])  # 格式化的法律条文上下文
 ## 📁 项目结构
 
 ```
-├── batch_ocr.py           # 批量 PDF OCR 处理模块
-├── pdf2txt.py             # 单文件 PDF 转文本工具
-├── test_ocr.py            # OCR 功能测试脚本
+├── batch_ocr.py                    # 批量 PDF OCR 处理模块
+├── pdf2txt.py                      # 单文件 PDF 转文本工具
+├── test_ocr.py                     # OCR 功能测试脚本
 │
-├── embedding_model.py     # BGE-M3 向量模型封装
-├── vectorize_text.py      # 文本向量化入库工具
-├── manage_vectordb.py     # 向量数据库管理工具
+├── embedding_model.py              # BGE-M3 向量模型封装
+├── vectorize_text.py               # 文本向量化入库工具
+├── manage_vectordb.py              # 向量数据库管理工具
 │
-├── rag_api.py             # RAG 查询 FastAPI 服务
-├── test_rag.py            # RAG 功能测试脚本
+├── rag_api.py                      # RAG 查询 FastAPI 服务
+├── test_rag.py                     # RAG 功能测试脚本
 │
-├── generate_judgment_glm4.py  # 判决书生成（GLM-4）
-├── llm_service.py         # LLM 辅助判案服务
-├── process_mingfa.py      # 民法典 PDF 处理入库
+├── generate_judgment_glm4.py       # 基于起诉状/答辩状生成判决书（GLM-4）
+├── generate_facts_from_hearing.py  # 基于开庭笔录生成案件事实（GLM-4）
+├── llm_service.py                  # LLM 辅助判案服务
+├── process_mingfa.py               # 民法典 PDF 处理入库
 │
-├── 中华人民共和国民法典.txt   # 法律知识库源文件
-├── requirements.txt       # Python 依赖
-└── README.md              # 项目文档
+├── 中华人民共和国民法典.txt          # 法律知识库源文件
+├── 判决书案件事实部分模板.txt        # 案件事实撰写参考模板
+├── requirements.txt                # Python 依赖
+├── LICENSE                         # MIT 开源许可证
+└── README.md                       # 项目文档
 ```
 
 ---
@@ -362,7 +385,7 @@ python embedding_model.py
 
 ## 📄 许可证
 
-本项目仅供学术研究和学习使用。
+本项目采用 [MIT 许可证](LICENSE) 开源。
 
 ---
 
