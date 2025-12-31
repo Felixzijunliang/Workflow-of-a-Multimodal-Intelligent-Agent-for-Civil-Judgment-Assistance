@@ -15,11 +15,13 @@ from pathlib import Path
 class HearingFactsGenerator:
     """基于开庭笔录的案件事实生成器"""
 
-    def __init__(self, api_url="你的llm地址", model="glm-4-9b-chat-tool-enabled"):
+    def __init__(self, api_url="http://104.224.158.247:8007/v1", model="glm-4-9b-chat-tool-enabled"):
         self.api_url = api_url
         self.model = model
         # 参考模板路径（通用民事判决书案件事实撰写模板）
         self.reference_template_path = Path("/home/titanrtx/lzj/lawyer/判决书案件事实部分模板.txt")
+        # 断点保存文件路径
+        self._checkpoint_file = None
 
     def read_hearing_transcript(self, hearing_file):
         """读取开庭笔录"""
@@ -141,6 +143,10 @@ class HearingFactsGenerator:
             generated_text = ""
             print("\n生成进度：\n")
 
+            # 断点保存：每500字符保存一次
+            last_save_len = 0
+            save_interval = 500
+
             for line in response.iter_lines():
                 if line:
                     line_str = line.decode('utf-8')
@@ -156,6 +162,13 @@ class HearingFactsGenerator:
                                     text = choice['text']
                                     generated_text += text
                                     print(text, end='', flush=True)
+
+                                    # 断点保存
+                                    if len(generated_text) - last_save_len >= save_interval:
+                                        if self._checkpoint_file:
+                                            with open(self._checkpoint_file, 'w', encoding='utf-8') as f:
+                                                f.write(generated_text)
+                                            last_save_len = len(generated_text)
                         except json.JSONDecodeError:
                             continue
 
@@ -167,7 +180,19 @@ class HearingFactsGenerator:
 
         except requests.exceptions.RequestException as e:
             print(f"错误：调用 GLM-4 API 失败 - {e}")
+            # 如果有断点文件，返回已生成的内容
+            if self._checkpoint_file and os.path.exists(self._checkpoint_file):
+                with open(self._checkpoint_file, 'r', encoding='utf-8') as f:
+                    return f.read()
             return None
+        except KeyboardInterrupt:
+            print("\n\n[用户中断，保存已生成内容]")
+            # 保存已生成的内容
+            if generated_text and self._checkpoint_file:
+                with open(self._checkpoint_file, 'w', encoding='utf-8') as f:
+                    f.write(generated_text)
+                print(f"✓ 已保存到断点文件: {self._checkpoint_file}")
+            return generated_text
 
     def clean_output(self, content):
         """清理输出内容"""
@@ -199,6 +224,9 @@ class HearingFactsGenerator:
             # 默认输出到开庭笔录同目录
             output_file = hearing_file.parent / f"{hearing_file.stem}_案件事实部分.txt"
 
+        # 设置断点保存文件
+        self._checkpoint_file = hearing_file.parent / f"{hearing_file.stem}_案件事实部分_checkpoint.txt"
+
         # 1. 读取开庭笔录
         hearing_content = self.read_hearing_transcript(hearing_file)
 
@@ -225,6 +253,10 @@ class HearingFactsGenerator:
             # 5. 保存结果
             self.save_result(result, output_file)
 
+            # 删除断点文件
+            if self._checkpoint_file and os.path.exists(self._checkpoint_file):
+                os.remove(self._checkpoint_file)
+
             print("\n" + "=" * 80)
             print("✅ 案件事实部分生成成功！")
             print("=" * 80)
@@ -233,6 +265,9 @@ class HearingFactsGenerator:
 
             return output_file
         else:
+            # 检查是否有断点文件可用
+            if self._checkpoint_file and os.path.exists(self._checkpoint_file):
+                print(f"\n⚠️ 生成中断，但已保存部分内容到: {self._checkpoint_file}")
             print("\n❌ 生成失败")
             return None
 
@@ -262,7 +297,7 @@ def main():
 
     # 创建生成器并运行
     generator = HearingFactsGenerator(
-        api_url="你的llm地址",
+        api_url="http://104.224.158.247:8007/v1",
         model="glm-4-9b-chat-tool-enabled"
     )
 
