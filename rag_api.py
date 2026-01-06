@@ -12,6 +12,7 @@ from datetime import datetime
 from qdrant_client import QdrantClient
 from qdrant_client.models import Filter, FieldCondition, MatchValue
 from embedding_model import get_embedding_model
+from settings import settings
 
 
 # ============= 数据模型 =============
@@ -70,30 +71,24 @@ class RAGContextResponse(BaseModel):
 # ============= RAG服务类 =============
 
 class RAGService:
-    def __init__(self, qdrant_path: str = None, qdrant_host: str = None,
-                 qdrant_port: int = 6333, collection_name: str = "law_knowledge"):
+    def __init__(self):
         """
         初始化RAG服务
-
-        Args:
-            qdrant_path: 本地Qdrant存储路径，如果指定则使用本地存储
-            qdrant_host: Qdrant服务器地址（当qdrant_path为None时使用）
-            qdrant_port: Qdrant端口
-            collection_name: 集合名称
         """
-        self.collection_name = collection_name
-
-        # 优先使用本地存储
-        if qdrant_path:
-            self.qdrant_client = QdrantClient(path=qdrant_path)
+        self.collection_name = settings.COLLECTION_NAME
+        
+        # 获取 Qdrant 客户端参数
+        client_args = settings.get_qdrant_client_args()
+        
+        try:
+            self.qdrant_client = QdrantClient(**client_args)
             print(f"✓ RAG服务初始化完成")
-            print(f"  - Qdrant: 本地存储 ({qdrant_path})")
-        else:
-            self.qdrant_client = QdrantClient(host=qdrant_host or "localhost", port=qdrant_port)
-            print(f"✓ RAG服务初始化完成")
-            print(f"  - Qdrant: {qdrant_host}:{qdrant_port}")
+            print(f"  - Qdrant: {client_args}")
+        except Exception as e:
+             print(f"✗ RAG服务初始化失败: {e}")
+             raise
 
-        print(f"  - Collection: {collection_name}")
+        print(f"  - Collection: {self.collection_name}")
         print(f"  - Embedding模型: BGE-M3")
 
         self.embedder = get_embedding_model()
@@ -237,20 +232,8 @@ rag_service: Optional[RAGService] = None
 async def startup_event():
     """启动时初始化RAG服务"""
     global rag_service
-    import os
-
-    # 优先使用本地存储，如果设置了QDRANT_HOST则使用远程
-    qdrant_path = os.getenv("QDRANT_PATH", "./qdrant_storage")
-    qdrant_host = os.getenv("QDRANT_HOST")
-    qdrant_port = int(os.getenv("QDRANT_PORT", "6333"))
-    collection_name = os.getenv("COLLECTION_NAME", "law_knowledge")
-
-    rag_service = RAGService(
-        qdrant_path=qdrant_path if not qdrant_host else None,
-        qdrant_host=qdrant_host,
-        qdrant_port=qdrant_port,
-        collection_name=collection_name
-    )
+    
+    rag_service = RAGService()
     print("✓ RAG API服务启动成功")
 
 
@@ -369,8 +352,8 @@ async def get_stats():
         raise HTTPException(status_code=500, detail=f"获取统计失败: {str(e)}")
 
 
-def start_server(host: str = "127.0.0.1", port: int = 8000):
-    """启动服务器（默认只允许本地访问）"""
+def start_server(host: str = settings.RAG_HOST, port: int = settings.RAG_PORT):
+    """启动服务器"""
     print(f"启动RAG API服务器: http://{host}:{port}")
     print(f"API文档: http://{host}:{port}/docs")
     uvicorn.run(app, host=host, port=port)
@@ -378,9 +361,9 @@ def start_server(host: str = "127.0.0.1", port: int = 8000):
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="启动RAG API服务（默认仅本地访问）")
-    parser.add_argument("--host", default="127.0.0.1", help="服务器地址（默认127.0.0.1仅本地访问）")
-    parser.add_argument("--port", type=int, default=8000, help="服务器端口")
+    parser = argparse.ArgumentParser(description="启动RAG API服务")
+    parser.add_argument("--host", default=settings.RAG_HOST, help=f"服务器地址（默认{settings.RAG_HOST}）")
+    parser.add_argument("--port", type=int, default=settings.RAG_PORT, help=f"服务器端口（默认{settings.RAG_PORT}）")
 
     args = parser.parse_args()
     start_server(host=args.host, port=args.port)

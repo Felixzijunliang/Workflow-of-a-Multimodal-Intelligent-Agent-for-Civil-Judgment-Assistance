@@ -9,12 +9,13 @@ import os
 import json
 import requests
 from pathlib import Path
+from settings import settings
 
 
 class JudgmentGenerator:
     """判决书生成器（vLLM版）"""
 
-    def __init__(self, api_url="http://104.224.158.247:8007/v1", model="glm-4-9b-chat-tool-enabled"):
+    def __init__(self, api_url=settings.LLM_API_URL, model=settings.LLM_MODEL):
         self.api_url = api_url
         self.model = model
 
@@ -288,7 +289,7 @@ def main():
         print("使用方法:")
         print(f"  python3 {sys.argv[0]} <案件目录路径> [输出文件路径]")
         print("\n示例:")
-        print(f"  python3 {sys.argv[0]} /home/titanrtx/lzj/layer/31774")
+        print(f"  python3 {sys.argv[0]} {settings.DATA_ROOT_DIR}/31774")
         sys.exit(1)
 
     case_dir = sys.argv[1]
@@ -300,8 +301,8 @@ def main():
 
     # 创建生成器并运行
     generator = JudgmentGenerator(
-        api_url="http://104.224.158.247:8007/v1",  # 远程服务器
-        model="glm-4-9b-chat-tool-enabled"
+        api_url=settings.LLM_API_URL,
+        model=settings.LLM_MODEL
     )
 
     generator.run(case_dir, output_file)

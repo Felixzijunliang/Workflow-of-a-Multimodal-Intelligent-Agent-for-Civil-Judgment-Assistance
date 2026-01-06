@@ -4,8 +4,14 @@
 """
 import sys
 import os
-sys.path.insert(0, '/home/titanrtx/lzj/layer')
+from pathlib import Path
 
+# 添加项目根目录到sys.path
+# 获取当前脚本所在目录
+current_dir = Path(__file__).resolve().parent
+sys.path.insert(0, str(current_dir))
+
+from settings import settings
 from batch_ocr import PDFProcessor
 from vectorize_text import TextVectorizer
 
@@ -45,9 +51,12 @@ def process_pdf_to_knowledge_base(pdf_path, output_txt_path=None):
     print("步骤2: 向量化并加入知识库")
     print("=" * 80)
 
+    # 使用 settings 中的配置初始化
     vectorizer = TextVectorizer(
-        qdrant_path="./qdrant_storage",
-        collection_name="law_knowledge"
+        qdrant_path=settings.QDRANT_PATH,
+        qdrant_host=settings.QDRANT_HOST,
+        qdrant_port=settings.QDRANT_PORT,
+        collection_name=settings.COLLECTION_NAME
     )
 
     vector_count = vectorizer.vectorize_and_upload(
@@ -63,16 +72,23 @@ def process_pdf_to_knowledge_base(pdf_path, output_txt_path=None):
     print(f"PDF文件: {os.path.basename(pdf_path)}")
     print(f"TXT文件: {os.path.basename(output_txt_path)}")
     print(f"生成向量: {vector_count} 个")
-    print(f"知识库: law_knowledge")
+    print(f"知识库: {settings.COLLECTION_NAME}")
     print("=" * 80)
 
     return output_txt_path, vector_count
 
 if __name__ == "__main__":
-    pdf_path = "/home/titanrtx/lzj/layer/中华人民共和国民法典.pdf"
+    # 使用配置中的民法典路径
+    pdf_path = str(settings.get_civil_code_path())
 
     if not os.path.exists(pdf_path):
         print(f"错误: PDF文件不存在 - {pdf_path}")
-        sys.exit(1)
+        # 尝试查找当前目录
+        local_pdf = "中华人民共和国民法典.pdf"
+        if os.path.exists(local_pdf):
+            print(f"提示: 使用当前目录下的文件 - {local_pdf}")
+            pdf_path = local_pdf
+        else:
+            sys.exit(1)
 
     process_pdf_to_knowledge_base(pdf_path)

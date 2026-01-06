@@ -7,9 +7,10 @@ import torch
 from typing import List, Union
 import numpy as np
 import os
+from settings import settings
 
 # 配置 HuggingFace 镜像源（解决网络问题）
-os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'
+os.environ['HF_ENDPOINT'] = settings.HF_ENDPOINT
 
 
 class BGEEmbedding:
@@ -134,5 +135,5 @@ if __name__ == "__main__":
     print(f"\n与各文本的相似度:")
     for i, (text, sim) in enumerate(zip(test_texts, similarities)):
         print(f"{i+1}. 相似度: {sim:.4f} - {text[:30]}...")
-
+    
     print("\n测试完成!")

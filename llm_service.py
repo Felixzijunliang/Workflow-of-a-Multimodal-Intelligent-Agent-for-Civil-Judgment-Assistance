@@ -14,6 +14,7 @@ import json
 import requests
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
+from settings import settings
 
 
 class LegalAssistantService:
@@ -21,9 +22,9 @@ class LegalAssistantService:
 
     def __init__(
         self,
-        llm_api_url: str = "你的llm地址",
-        llm_model: str = "glm-4-9b-chat-tool-enabled",
-        rag_api_url: str = "http://127.0.0.1:8001"
+        llm_api_url: str = settings.LLM_API_URL,
+        llm_model: str = settings.LLM_MODEL,
+        rag_api_url: str = settings.RAG_API_BASE_URL
     ):
         """
         初始化服务
@@ -605,9 +606,9 @@ def main():
         print("  2. 调用 RAG 系统检索相关民法典条文")
         print("  3. 生成专业的辅助判案建议")
         print("\n可选环境变量:")
-        print("  LLM_API_URL - GLM4 API 地址 (默认: http://localhost:8000/v1)")
-        print("  LLM_MODEL - 模型名称 (默认: glm4:9b)")
-        print("  RAG_API_URL - RAG API 地址 (默认: http://localhost:8000)")
+        print(f"  LLM_API_URL - GLM4 API 地址 (默认: {settings.LLM_API_URL})")
+        print(f"  LLM_MODEL - 模型名称 (默认: {settings.LLM_MODEL})")
+        print(f"  RAG_API_URL - RAG API 地址 (默认: {settings.RAG_API_BASE_URL})")
         sys.exit(1)
 
     case_dir = sys.argv[1]
@@ -617,9 +618,9 @@ def main():
         sys.exit(1)
 
     # 从环境变量读取配置（如果没有设置则使用远程服务器）
-    llm_api_url = os.getenv("LLM_API_URL", "你llm的位置")
-    llm_model = os.getenv("LLM_MODEL", "glm-4-9b-chat-tool-enabled")
-    rag_api_url = os.getenv("RAG_API_URL", "http://127.0.0.1:8001")
+    llm_api_url = settings.LLM_API_URL
+    llm_model = settings.LLM_MODEL
+    rag_api_url = settings.RAG_API_BASE_URL
 
     # 创建服务并运行
     service = LegalAssistantService(

@@ -6,6 +6,7 @@ RAG系统快速测试脚本
 import requests
 import time
 import sys
+from settings import settings
 
 
 def test_health():
@@ -14,7 +15,7 @@ def test_health():
     print("测试1: 健康检查")
     print("=" * 50)
     try:
-        response = requests.get("http://localhost:8000/health", timeout=5)
+        response = requests.get(f"{settings.RAG_API_BASE_URL}/health", timeout=5)
         if response.status_code == 200:
             data = response.json()
             print(f"✓ 服务状态: {data['status']}")
@@ -39,7 +40,7 @@ def test_stats():
     print("测试2: 统计信息")
     print("=" * 50)
     try:
-        response = requests.get("http://localhost:8000/stats", timeout=5)
+        response = requests.get(f"{settings.RAG_API_BASE_URL}/stats", timeout=5)
         if response.status_code == 200:
             data = response.json()
             print(f"✓ 集合名称: {data['collection_name']}")
@@ -66,7 +67,7 @@ def test_search():
 
     try:
         response = requests.post(
-            "http://localhost:8000/search",
+            f"{settings.RAG_API_BASE_URL}/search",
             json={
                 "query": test_query,
                 "top_k": 3,
@@ -114,7 +115,7 @@ def test_get_context():
 
     try:
         response = requests.post(
-            "http://localhost:8000/get_context",
+            f"{settings.RAG_API_BASE_URL}/get_context",
             json={
                 "case_facts": case_facts,
                 "evidence_chain": "1. 房屋买卖合同 2. 银行转账记录",

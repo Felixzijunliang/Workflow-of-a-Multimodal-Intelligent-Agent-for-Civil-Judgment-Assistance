@@ -10,16 +10,17 @@ import json
 import requests
 import re
 from pathlib import Path
+from settings import settings
 
 
 class HearingFactsGenerator:
     """基于开庭笔录的案件事实生成器"""
 
-    def __init__(self, api_url="你的llm地址", model="glm-4-9b-chat-tool-enabled"):
+    def __init__(self, api_url=settings.LLM_API_URL, model=settings.LLM_MODEL):
         self.api_url = api_url
         self.model = model
         # 参考模板路径（通用民事判决书案件事实撰写模板）
-        self.reference_template_path = Path("/home/titanrtx/lzj/lawyer/判决书案件事实部分模板.txt")
+        self.reference_template_path = settings.get_template_path()
         # 断点保存文件路径
         self._checkpoint_file = None
 
@@ -297,8 +298,8 @@ def main():
 
     # 创建生成器并运行
     generator = HearingFactsGenerator(
-        api_url="你的llm地址",
-        model="glm-4-9b-chat-tool-enabled"
+        api_url=settings.LLM_API_URL,
+        model=settings.LLM_MODEL
     )
 
     generator.run(hearing_file, output_file)
