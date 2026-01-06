@@ -9,6 +9,7 @@
 
 import os
 import json
+import tempfile
 from paddleocr import PaddleOCR
 import fitz  # PyMuPDF
 from pathlib import Path
@@ -25,7 +26,7 @@ class PDFProcessor:
         """延迟初始化 OCR"""
         if self.ocr is None:
             print("正在初始化 PaddleOCR...")
-            self.ocr = PaddleOCR(use_angle_cls=True, lang='ch', show_log=False)
+            self.ocr = PaddleOCR(lang='ch')
 
     def extract_text_from_pdf(self, pdf_path, use_ocr=True):
         """
@@ -77,17 +78,26 @@ class PDFProcessor:
 
                 # 将页面转为图片（提高分辨率）
                 pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
-                img_data = pix.tobytes("png")
+
+                # 保存为临时文件（新版 PaddleOCR 需要文件路径）
+                with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp_file:
+                    tmp_path = tmp_file.name
+                    pix.save(tmp_path)
 
                 # OCR 识别
-                result = self.ocr.ocr(img_data, cls=True)
+                result = self.ocr.ocr(tmp_path, cls=True)
 
-                # 提取文本
+                # 删除临时文件
+                os.unlink(tmp_path)
+
+                # 提取文本（适配 PaddleOCR 3.x 返回格式）
                 page_text = []
                 if result and result[0]:
                     for line in result[0]:
-                        if line[1]:
-                            page_text.append(line[1][0])
+                        if line and len(line) > 1 and line[1]:
+                            # line[1] 是 (text, confidence) 元组
+                            text = line[1][0] if isinstance(line[1], (list, tuple)) else line[1]
+                            page_text.append(text)
 
                 ocr_text = "\n".join(page_text)
                 pages_data.append({
