@@ -119,7 +119,42 @@ pip install -r requirements.txt
 pip install paddlepaddle paddleocr PyMuPDF
 ```
 
-### 3. 准备法律知识库
+### 3. 配置环境变量
+
+```bash
+# 复制配置模板
+cp .env.example .env
+
+# 编辑 .env 文件，填入你的配置
+# 必须配置的项：
+#   - LLM_API_URL: 你的 LLM 服务地址
+#   - DATA_ROOT_DIR: 数据文件所在的根目录
+```
+
+**配置示例 (`.env`)：**
+
+```ini
+# LLM 服务配置
+LLM_API_URL=http://your-llm-server:8000/v1
+LLM_MODEL=glm-4-9b-chat-tool-enabled
+
+# RAG 服务配置
+RAG_HOST=0.0.0.0
+RAG_PORT=8000
+RAG_API_BASE_URL=http://localhost:8000
+
+# Qdrant 向量数据库
+QDRANT_HOST=localhost
+QDRANT_PORT=6333
+COLLECTION_NAME=law_knowledge
+
+# 数据路径
+DATA_ROOT_DIR=/path/to/your/data
+```
+
+> ⚠️ **注意**：`.env` 文件包含敏感配置，已被 `.gitignore` 忽略，不会提交到版本库。
+
+### 4. 准备法律知识库
 
 ```bash
 # 向量化民法典（首次运行会自动下载 BGE-M3 模型）
@@ -129,10 +164,13 @@ python vectorize_text.py 中华人民共和国民法典.txt --category "民法"
 python vectorize_text.py ./legal_docs/ --chunk-size 500 --overlap 50
 ```
 
-### 4. 启动 RAG API 服务
+### 5. 启动 RAG API 服务
 
 ```bash
-# 启动服务（默认端口 8000）
+# 启动服务（使用 .env 中配置的端口）
+python rag_api.py
+
+# 或手动指定端口
 python rag_api.py --host 0.0.0.0 --port 8000
 
 # 访问 API 文档
@@ -240,6 +278,10 @@ print(result["context"])  # 格式化的法律条文上下文
 ## 📁 项目结构
 
 ```
+├── settings.py                     # 🆕 统一配置管理（读取 .env）
+├── .env.example                    # 🆕 环境变量配置模板
+├── .env                            # 本地配置文件（不提交到仓库）
+│
 ├── batch_ocr.py                    # 批量 PDF OCR 处理模块
 ├── pdf2txt.py                      # 单文件 PDF 转文本工具
 ├── test_ocr.py                     # OCR 功能测试脚本
@@ -304,17 +346,31 @@ curl -X POST "http://localhost:8000/get_context" \
 
 ## ⚙️ 配置说明
 
+本项目采用 **集中配置管理**，所有配置项通过 `settings.py` 统一管理，支持通过 `.env` 文件覆盖默认值。
+
+### 配置文件说明
+
+| 文件 | 说明 |
+|------|------|
+| `settings.py` | 配置定义和默认值（提交到仓库） |
+| `.env.example` | 配置模板，包含所有可配置项说明 |
+| `.env` | **你的本地配置**（不提交到仓库，包含敏感信息） |
+
 ### 环境变量
 
 | 变量名 | 默认值 | 描述 |
 |--------|--------|------|
-| `QDRANT_PATH` | `./qdrant_storage` | 本地向量数据库路径 |
-| `QDRANT_HOST` | - | 远程 Qdrant 地址（设置后使用远程） |
+| `LLM_API_URL` | `http://localhost:8000/v1` | GLM-4 LLM 服务地址 |
+| `LLM_MODEL` | `glm-4-9b-chat-tool-enabled` | LLM 模型名称 |
+| `RAG_HOST` | `0.0.0.0` | RAG API 监听地址 |
+| `RAG_PORT` | `8000` | RAG API 监听端口 |
+| `RAG_API_BASE_URL` | `http://localhost:8000` | RAG 服务调用地址 |
+| `QDRANT_PATH` | - | 本地 Qdrant 存储路径（优先） |
+| `QDRANT_HOST` | `localhost` | Qdrant 服务器地址 |
 | `QDRANT_PORT` | `6333` | Qdrant 端口 |
 | `COLLECTION_NAME` | `law_knowledge` | 向量集合名称 |
-| `LLM_API_URL` | `你的llm地址` | GLM-4 API 地址 |
-| `LLM_MODEL` | `glm-4-9b-chat-tool-enabled` | 模型名称 |
-| `RAG_API_URL` | `http://127.0.0.1:8001` | RAG 服务地址 |
+| `DATA_ROOT_DIR` | 项目目录 | 数据文件根目录 |
+| `HF_ENDPOINT` | `https://hf-mirror.com` | HuggingFace 镜像站 |
 
 ### 向量化参数调优
 
