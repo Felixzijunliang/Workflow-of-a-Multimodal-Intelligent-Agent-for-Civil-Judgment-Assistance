@@ -13,7 +13,6 @@ import tempfile
 from paddleocr import PaddleOCR
 import fitz  # PyMuPDF
 from pathlib import Path
-from settings import settings
 
 
 class PDFProcessor:
@@ -244,8 +243,7 @@ def main():
         print("使用方法:")
         print(f"  python3 {sys.argv[0]} <案件目录路径>")
         print("\n示例:")
-        # 使用配置中的示例路径
-        print(f"  python3 {sys.argv[0]} {settings.DATA_ROOT_DIR}/31774")
+        print(f"  python3 {sys.argv[0]} /home/titanrtx/lzj/layer/31774")
         sys.exit(1)
 
     case_dir = sys.argv[1]

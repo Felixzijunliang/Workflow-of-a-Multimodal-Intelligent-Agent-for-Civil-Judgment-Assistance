@@ -12,7 +12,9 @@ from qdrant_client.models import (
 )
 from embedding_model import get_embedding_model
 import json
-from settings import settings
+
+# 导入统一配置
+import settings
 
 
 class VectorDBManager:
@@ -28,23 +30,14 @@ class VectorDBManager:
             collection_name: 集合名称
         """
         self.collection_name = collection_name
-        
-        # 如果未传入参数，使用settings默认值
-        if qdrant_path is None and qdrant_host is None:
-             qdrant_path = settings.QDRANT_PATH
-             qdrant_host = settings.QDRANT_HOST
-             qdrant_port = settings.QDRANT_PORT
-             if collection_name == "law_knowledge": # 如果是默认值，则使用settings
-                 self.collection_name = settings.COLLECTION_NAME
 
         # 优先使用本地存储
         if qdrant_path:
             print(f"使用本地Qdrant存储: {qdrant_path}")
             self.client = QdrantClient(path=qdrant_path)
         else:
-            host = qdrant_host or "localhost"
-            print(f"连接到Qdrant: {host}:{qdrant_port}")
-            self.client = QdrantClient(host=host, port=qdrant_port)
+            print(f"连接到Qdrant: {qdrant_host}:{qdrant_port}")
+            self.client = QdrantClient(host=qdrant_host or "localhost", port=qdrant_port)
 
         self.embedder = get_embedding_model()
 
@@ -254,10 +247,10 @@ class VectorDBManager:
 
 def main():
     parser = argparse.ArgumentParser(description="向量数据库管理工具")
-    parser.add_argument("--local-path", default=None, help="本地Qdrant存储路径")
-    parser.add_argument("--host", default=None, help="Qdrant服务器地址")
-    parser.add_argument("--port", type=int, default=settings.QDRANT_PORT, help="Qdrant端口")
-    parser.add_argument("--collection", default=settings.COLLECTION_NAME, help="集合名称")
+    parser.add_argument("--local-path", default=None, help=f"本地Qdrant存储路径（默认: {settings.QDRANT_PATH}）")
+    parser.add_argument("--host", default=None, help="Qdrant服务器地址（如果指定则使用远程服务器）")
+    parser.add_argument("--port", type=int, default=None, help=f"Qdrant端口（默认: {settings.QDRANT_PORT}）")
+    parser.add_argument("--collection", default=None, help=f"集合名称（默认: {settings.COLLECTION_NAME}）")
 
     subparsers = parser.add_subparsers(dest="command", help="子命令")
 
@@ -297,13 +290,18 @@ def main():
         parser.print_help()
         sys.exit(1)
 
-    # 初始化管理器（优先使用命令行参数，其次使用settings）
-    # 注意：argparse的default=None，所以这里需要判断
+    # 使用统一配置作为默认值
+    qdrant_path = args.local_path if args.local_path is not None else settings.QDRANT_PATH
+    qdrant_host = args.host
+    qdrant_port = args.port or settings.QDRANT_PORT
+    collection_name = args.collection or settings.COLLECTION_NAME
+
+    # 初始化管理器（优先使用本地存储，除非指定了host）
     manager = VectorDBManager(
-        qdrant_path=args.local_path,
-        qdrant_host=args.host,
-        qdrant_port=args.port,
-        collection_name=args.collection
+        qdrant_path=qdrant_path if not qdrant_host else None,
+        qdrant_host=qdrant_host,
+        qdrant_port=qdrant_port,
+        collection_name=collection_name
     )
 
     # 执行命令

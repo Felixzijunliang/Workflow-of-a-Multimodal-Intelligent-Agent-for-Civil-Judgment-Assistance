@@ -13,7 +13,9 @@ from tqdm import tqdm
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams, PointStruct
 from embedding_model import get_embedding_model
-from settings import settings
+
+# 导入统一配置
+import settings
 
 
 class TextVectorizer:
@@ -29,23 +31,14 @@ class TextVectorizer:
             collection_name: 集合名称
         """
         self.collection_name = collection_name
-        
-        # 如果未传入参数，使用settings默认值
-        if qdrant_path is None and qdrant_host is None:
-             qdrant_path = settings.QDRANT_PATH
-             qdrant_host = settings.QDRANT_HOST
-             qdrant_port = settings.QDRANT_PORT
-             if collection_name == "law_knowledge": # 如果是默认值，则使用settings
-                 self.collection_name = settings.COLLECTION_NAME
 
         # 优先使用本地存储
         if qdrant_path:
             print(f"使用本地Qdrant存储: {qdrant_path}")
             self.client = QdrantClient(path=qdrant_path)
         else:
-            host = qdrant_host or "localhost"
-            print(f"连接到Qdrant: {host}:{qdrant_port}")
-            self.client = QdrantClient(host=host, port=qdrant_port)
+            print(f"连接到Qdrant: {qdrant_host}:{qdrant_port}")
+            self.client = QdrantClient(host=qdrant_host or "localhost", port=qdrant_port)
 
         # 加载embedding模型
         self.embedder = get_embedding_model()
@@ -242,15 +235,21 @@ class TextVectorizer:
 def main():
     parser = argparse.ArgumentParser(description="法律文本向量化工具")
     parser.add_argument("path", help="txt文件路径或包含txt文件的目录")
-    parser.add_argument("--local-path", default=None, help="本地Qdrant存储路径")
-    parser.add_argument("--host", default=None, help="Qdrant服务器地址")
-    parser.add_argument("--port", type=int, default=settings.QDRANT_PORT, help="Qdrant端口")
-    parser.add_argument("--collection", default=settings.COLLECTION_NAME, help="集合名称")
+    parser.add_argument("--local-path", default=None, help=f"本地Qdrant存储路径（默认: {settings.QDRANT_PATH}）")
+    parser.add_argument("--host", default=None, help="Qdrant服务器地址（如果指定则使用远程服务器）")
+    parser.add_argument("--port", type=int, default=None, help=f"Qdrant端口（默认: {settings.QDRANT_PORT}）")
+    parser.add_argument("--collection", default=None, help=f"集合名称（默认: {settings.COLLECTION_NAME}）")
     parser.add_argument("--chunk-size", type=int, default=500, help="文本块大小")
     parser.add_argument("--overlap", type=int, default=50, help="块重叠大小")
     parser.add_argument("--category", help="法律类别（可选元数据）")
 
     args = parser.parse_args()
+
+    # 使用统一配置作为默认值
+    qdrant_path = args.local_path if args.local_path is not None else settings.QDRANT_PATH
+    qdrant_host = args.host
+    qdrant_port = args.port or settings.QDRANT_PORT
+    collection_name = args.collection or settings.COLLECTION_NAME
 
     # 准备元数据
     metadata = {}
@@ -259,10 +258,10 @@ def main():
 
     # 初始化向量化器（优先使用本地存储，除非指定了host）
     vectorizer = TextVectorizer(
-        qdrant_path=args.local_path,
-        qdrant_host=args.host,
-        qdrant_port=args.port,
-        collection_name=args.collection
+        qdrant_path=qdrant_path if not qdrant_host else None,
+        qdrant_host=qdrant_host,
+        qdrant_port=qdrant_port,
+        collection_name=collection_name
     )
 
     # 处理路径

@@ -2,155 +2,116 @@
 # -*- coding: utf-8 -*-
 """
 判决书生成脚本 - GLM4 vLLM 版本
-使用 vLLM GLM4-9B 模型生成判决书"案件事实"部分
+使用 vLLM GLM4-9B 模型从案件事实生成判决和法律意见
 """
 
 import os
 import json
 import requests
 from pathlib import Path
-from settings import settings
+
+# 导入统一配置
+import settings
 
 
 class JudgmentGenerator:
-    """判决书生成器（vLLM版）"""
+    """判决书生成器（vLLM版）- 从案件事实生成判决"""
 
-    def __init__(self, api_url=settings.LLM_API_URL, model=settings.LLM_MODEL):
-        self.api_url = api_url
-        self.model = model
+    def __init__(self, api_url=None, model=None):
+        self.api_url = api_url or settings.LLM_BASE_URL
+        self.model = model or settings.LLM_MODEL
 
-    def read_case_files(self, case_dir):
-        """读取案件所有文件"""
-        case_dir = Path(case_dir)
+    def read_case_facts_file(self, facts_file):
+        """读取案件事实文件（格式：案号_案件事实部分.txt）"""
+        facts_file = Path(facts_file)
+
+        if not facts_file.exists():
+            raise FileNotFoundError(f"案件事实文件不存在: {facts_file}")
 
         print("=" * 80)
-        print("正在读取案件材料...")
+        print(f"正在读取案件事实文件: {facts_file.name}")
         print("=" * 80)
 
-        # 获取案件编号
-        case_number = case_dir.name
+        # 从文件名提取案号
+        case_number = facts_file.stem.replace("_案件事实部分", "")
+        print(f"案号: {case_number}")
 
-        # 查找判决书模板
-        template_file = None
-        matching_templates = list(case_dir.glob(f"*{case_number}*判决书*.txt")) + \
-                           list(case_dir.glob(f"*{case_number}*模板*.txt"))
+        # 读取案件事实内容
+        with open(facts_file, 'r', encoding='utf-8') as f:
+            facts_content = f.read()
 
-        if matching_templates:
-            template_file = matching_templates[0]
-        else:
-            template_files = list(case_dir.glob("*判决书*.txt")) + \
-                           list(case_dir.glob("*结案文书*.txt")) + \
-                           list(case_dir.glob("*模板*.txt"))
-            if template_files:
-                template_file = template_files[0]
-
-        if not template_file:
-            raise FileNotFoundError("未找到判决书模板文件")
-
-        # 查找起诉状和答辩状
-        plaintiff_files = list(case_dir.glob("起诉状*.txt")) + list(case_dir.glob("*起诉状*.txt"))
-        if not plaintiff_files:
-            raise FileNotFoundError("未找到起诉状文件")
-        plaintiff_file = plaintiff_files[0]
-
-        defendant_files = list(case_dir.glob("答辩状*.txt")) + list(case_dir.glob("*答辩状*.txt"))
-        if not defendant_files:
-            raise FileNotFoundError("未找到答辩状文件")
-        defendant_file = defendant_files[0]
-
-        # 读取文件
-        print(f"✓ 读取起诉状: {plaintiff_file.name}")
-        with open(plaintiff_file, 'r', encoding='utf-8') as f:
-            plaintiff_content = f.read()
-
-        print(f"✓ 读取答辩状: {defendant_file.name}")
-        with open(defendant_file, 'r', encoding='utf-8') as f:
-            defendant_content = f.read()
-
-        print(f"✓ 读取判决书模板: {template_file.name}")
-        with open(template_file, 'r', encoding='utf-8') as f:
-            template_content = f.read()
-
-        # 读取所有证据材料
-        proof_dir = case_dir / "proof"
-        proofs = []
-        if proof_dir.exists():
-            proof_files = sorted(proof_dir.glob("证据材料*.txt"),
-                               key=lambda x: int(''.join(filter(str.isdigit, x.stem)) or '0'))
-            print(f"\n正在读取 {len(proof_files)} 个证据材料...")
-            for proof_file in proof_files:
-                with open(proof_file, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                    proofs.append({
-                        'name': proof_file.stem,
-                        'content': content
-                    })
-            print(f"✓ 已读取 {len(proofs)} 个证据材料")
+        print(f"✓ 案件事实读取完成 ({len(facts_content)} 字符)")
 
         return {
-            'plaintiff': plaintiff_content,
-            'defendant': defendant_content,
-            'template': template_content,
-            'proofs': proofs
+            'case_number': case_number,
+            'facts': facts_content
         }
 
     def build_prompt(self, case_data):
-        """构建优化 prompt（方案1：安全配置，适配16K context限制）"""
+        """构建生成判决和法律意见的 prompt"""
 
-        # 证据材料 - 每个保留前200字符，取前8个证据（优先最关键的）
-        proof_summary = ""
-        for i, proof in enumerate(case_data['proofs'][:8], 1):
-            content_preview = proof['content'][:200].replace("=====", "").strip()
-            proof_summary += f"\n【证据{i}: {proof['name']}】\n{content_preview}\n"
-            if len(proof['content']) > 200:
-                proof_summary += "...\n"
+        prompt = f"""# 角色
+你是一位资深法官，需要根据已整理的案件事实，撰写判决书的"本院认为"部分（法律分析和判决理由）。
 
-        if len(case_data['proofs']) > 8:
-            proof_summary += f"\n... 以及其他{len(case_data['proofs'])-8}个证据（略）\n"
+# 案件事实
+以下是本案已经整理好的案件事实部分，包含了原告诉求、被告答辩、第三方答辩等内容：
 
-        prompt = f"""# 任务
-你是一位资深法官，需要根据案件材料撰写判决书的"案件事实"部分。请仔细阅读所有材料，包括起诉状、答辩状和关键证据链条，准确还原案件事实。
+{case_data['facts']}
 
-# 撰写要求
-1. **合同背景**：标的物、签订时间、合同主体、期限、租金等核心要素
-2. **合同履行情况**：详细记录实际支付情况、履行时间线
-3. **违约事实**：明确何时、如何违约，违约的具体表现
-4. **原告诉讼请求**：完整陈述原告的诉讼请求及具体金额
-5. **被告答辩意见**：全面反映被告的抗辩理由和事实主张
-6. **证据支撑**：基于证据材料还原事实，注意证据之间的逻辑关系
+# 任务要求
+请根据上述案件事实，撰写判决书的"本院认为"部分，包括：
 
-# 材料
+## 1. 法律关系认定
+- 明确本案的法律关系性质（如合同关系、侵权关系、继承关系等）
+- 确定适用的法律依据
 
-## 判决书模板（参考文风）
-{case_data['template'][:800]}
+## 2. 争议焦点分析
+- 归纳双方的主要争议焦点
+- 逐一分析各方的主张和理由
 
-## 起诉状（核心内容）
-{case_data['plaintiff'][:2200]}
+## 3. 证据采信与事实认定
+- 对双方提交的证据进行分析和采信
+- 基于证据认定案件事实
+- 对有争议的事实进行判断
 
-## 答辩状（核心内容）
-{case_data['defendant'][:1600]}
+## 4. 法律适用与裁判理由
+- 引用相关法律条文
+- 阐述法律适用的理由
+- 说明为何支持或驳回各方诉求
+- 对于部分支持的，说明计算依据和理由
 
-## 关键证据材料
-{proof_summary}
+## 5. 诉讼费用承担
+- 根据案件结果确定诉讼费用的承担方式
+- 说明费用承担的法律依据
 
-# 注意事项
-- 必须基于实际材料撰写，不得凭空捏造
-- 注意证据之间的逻辑关系和时间顺序
-- 准确引用具体金额、日期、地点等关键信息
-- 客观中立地陈述双方主张
-- 突出证据对案件事实的支撑作用
+# 写作要求
+1. **法律语言规范**：使用专业、严谨的法律文书语言
+2. **逻辑严密**：论证过程清晰，说理充分
+3. **引用准确**：准确引用相关法律条文（如《中华人民共和国民法典》等）
+4. **客观公正**：保持中立立场，依法裁判
+5. **结论明确**：对原告的每项诉讼请求都要有明确的支持或驳回意见
 
 # 输出格式
-直接输出正文，按以下结构组织：
+直接输出"本院认为"部分的正文，格式如下：
 
-一、案涉商铺基本情况及合同签订
-二、合同履行情况
-三、合同违约及纠纷产生
-四、原告诉讼请求
-五、被告答辩意见
-六、其他相关事实
+本院认为，[法律关系认定]...
 
-开始撰写：
+关于[争议焦点一]，[分析论证]...根据《中华人民共和国民法典》第XXX条规定，[法律适用]...
+
+关于[争议焦点二]，[分析论证]...
+
+综上所述，[总结性意见]。原告的诉讼请求，[支持/部分支持/驳回]。
+
+关于诉讼费用，根据《中华人民共和国民事诉讼法》的相关规定，[费用承担方案]。
+
+# 注意事项
+- 不要重复案件事实部分的内容，直接进行法律分析
+- 必须引用具体的法律条文
+- 对于金额计算要说明依据和计算过程
+- 保持客观中立，不偏袒任何一方
+- 如果案件事实中提到了第三方，也要在分析中涉及
+
+请开始撰写"本院认为"部分：
 """
         return prompt
 
@@ -239,15 +200,17 @@ class JudgmentGenerator:
             f.write(cleaned_content)
         print(f"\n✓ 结果已保存到: {output_file}")
 
-    def run(self, case_dir, output_file=None):
+    def run(self, facts_file, output_file=None):
         """运行生成流程"""
-        case_dir = Path(case_dir)
+        facts_file = Path(facts_file)
 
         if output_file is None:
-            output_file = case_dir / "判决书_案件事实部分_GLM4生成.txt"
+            # 默认输出文件名：案号_判决理由.txt
+            case_number = facts_file.stem.replace("_案件事实部分", "")
+            output_file = facts_file.parent / f"{case_number}_判决理由.txt"
 
-        # 1. 读取案件材料
-        case_data = self.read_case_files(case_dir)
+        # 1. 读取案件事实文件
+        case_data = self.read_case_facts_file(facts_file)
 
         # 2. 构建 prompt
         print("\n" + "=" * 80)
@@ -257,7 +220,7 @@ class JudgmentGenerator:
         print(f"✓ Prompt 构建完成（长度: {len(prompt)} 字符）")
 
         # 保存 prompt
-        prompt_file = case_dir / "生成用_prompt_GLM4.txt"
+        prompt_file = facts_file.parent / f"{case_data['case_number']}_判决理由_prompt.txt"
         with open(prompt_file, 'w', encoding='utf-8') as f:
             f.write(prompt)
         print(f"✓ Prompt 已保存到: {prompt_file}")
@@ -270,7 +233,7 @@ class JudgmentGenerator:
             self.save_result(result, output_file)
 
             print("\n" + "=" * 80)
-            print("✅ 判决书案件事实部分生成成功！")
+            print("✅ 判决理由部分生成成功！")
             print("=" * 80)
             print(f"输出文件: {output_file}")
             print(f"Prompt 文件: {prompt_file}")
@@ -287,25 +250,29 @@ def main():
 
     if len(sys.argv) < 2:
         print("使用方法:")
-        print(f"  python3 {sys.argv[0]} <案件目录路径> [输出文件路径]")
+        print(f"  python3 {sys.argv[0]} <案件事实文件路径> [输出文件路径]")
+        print("\n说明:")
+        print("  案件事实文件格式: 案号_案件事实部分.txt")
+        print("  文件应包含: 案件事实、原告诉求、被告答辩、第三方答辩等内容")
         print("\n示例:")
-        print(f"  python3 {sys.argv[0]} {settings.DATA_ROOT_DIR}/31774")
+        print(f"  python3 {sys.argv[0]} 7512/7512_案件事实部分.txt")
+        print(f"  python3 {sys.argv[0]} 7512/7512_案件事实部分.txt 7512/判决理由.txt")
+        print("\n配置说明:")
+        print("  配置文件: .env（可从 .env.example 复制）")
+        print(f"  当前 LLM API: {settings.LLM_BASE_URL}")
+        print(f"  当前模型: {settings.LLM_MODEL}")
         sys.exit(1)
 
-    case_dir = sys.argv[1]
+    facts_file = sys.argv[1]
     output_file = sys.argv[2] if len(sys.argv) > 2 else None
 
-    if not os.path.exists(case_dir):
-        print(f"错误: 目录不存在 - {case_dir}")
+    if not os.path.exists(facts_file):
+        print(f"错误: 文件不存在 - {facts_file}")
         sys.exit(1)
 
-    # 创建生成器并运行
-    generator = JudgmentGenerator(
-        api_url=settings.LLM_API_URL,
-        model=settings.LLM_MODEL
-    )
-
-    generator.run(case_dir, output_file)
+    # 创建生成器并运行（使用统一配置）
+    generator = JudgmentGenerator()
+    generator.run(facts_file, output_file)
 
 
 if __name__ == "__main__":

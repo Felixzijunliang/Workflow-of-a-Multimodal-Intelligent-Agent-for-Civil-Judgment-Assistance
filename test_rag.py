@@ -6,7 +6,12 @@ RAG系统快速测试脚本
 import requests
 import time
 import sys
-from settings import settings
+
+# 导入统一配置
+import settings
+
+# 从配置获取 RAG API 地址
+RAG_BASE_URL = settings.RAG_BASE_URL
 
 
 def test_health():
@@ -15,7 +20,7 @@ def test_health():
     print("测试1: 健康检查")
     print("=" * 50)
     try:
-        response = requests.get(f"{settings.RAG_API_BASE_URL}/health", timeout=5)
+        response = requests.get(f"{RAG_BASE_URL}/health", timeout=5)
         if response.status_code == 200:
             data = response.json()
             print(f"✓ 服务状态: {data['status']}")
@@ -30,7 +35,8 @@ def test_health():
             return False
     except Exception as e:
         print(f"✗ 连接失败: {e}")
-        print("提示: 请先运行 ./start_rag.sh 启动服务")
+        print(f"提示: 请先运行 ./start_rag.sh 启动服务")
+        print(f"当前 RAG API 地址: {RAG_BASE_URL}")
         return False
 
 
@@ -40,7 +46,7 @@ def test_stats():
     print("测试2: 统计信息")
     print("=" * 50)
     try:
-        response = requests.get(f"{settings.RAG_API_BASE_URL}/stats", timeout=5)
+        response = requests.get(f"{RAG_BASE_URL}/stats", timeout=5)
         if response.status_code == 200:
             data = response.json()
             print(f"✓ 集合名称: {data['collection_name']}")
@@ -67,7 +73,7 @@ def test_search():
 
     try:
         response = requests.post(
-            f"{settings.RAG_API_BASE_URL}/search",
+            f"{RAG_BASE_URL}/search",
             json={
                 "query": test_query,
                 "top_k": 3,
@@ -115,7 +121,7 @@ def test_get_context():
 
     try:
         response = requests.post(
-            f"{settings.RAG_API_BASE_URL}/get_context",
+            f"{RAG_BASE_URL}/get_context",
             json={
                 "case_facts": case_facts,
                 "evidence_chain": "1. 房屋买卖合同 2. 银行转账记录",

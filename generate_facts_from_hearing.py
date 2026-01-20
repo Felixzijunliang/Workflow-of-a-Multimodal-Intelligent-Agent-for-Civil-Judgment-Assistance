@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 根据开庭笔录生成判决书案件事实部分
-使用 GLM-4-9B 模型
+使用 GLM-4-9B 模型（支持远程/本地部署切换）
 """
 
 import os
@@ -10,17 +10,30 @@ import json
 import requests
 import re
 from pathlib import Path
-from settings import settings
+
+# API配置
+API_CONFIGS = {
+    "remote": {
+        "api_url": "http://104.224.158.247:8007/v1",
+        "model": "glm-4-9b-chat-tool-enabled",
+        "description": "远程服务器 (104.224.158.247:8007)"
+    },
+    "local": {
+        "api_url": "http://localhost:8000/v1",
+        "model": "/home/titanrtx/hf_cache/hub/models--zai-org--glm-4-9b-chat-1m/snapshots/f8579ac096986e44ba24a5060d2fb79bedb56ef3",
+        "description": "本地vLLM服务 (localhost:8000)"
+    }
+}
 
 
 class HearingFactsGenerator:
     """基于开庭笔录的案件事实生成器"""
 
-    def __init__(self, api_url=settings.LLM_API_URL, model=settings.LLM_MODEL):
+    def __init__(self, api_url="http://104.224.158.247:8007/v1", model="glm-4-9b-chat-tool-enabled"):
         self.api_url = api_url
         self.model = model
         # 参考模板路径（通用民事判决书案件事实撰写模板）
-        self.reference_template_path = settings.get_template_path()
+        self.reference_template_path = Path("/home/titanrtx/lzj/lawyer/判决书案件事实部分模板.txt")
         # 断点保存文件路径
         self._checkpoint_file = None
 
@@ -276,33 +289,67 @@ class HearingFactsGenerator:
 def main():
     """主函数"""
     import sys
+    import argparse
 
-    if len(sys.argv) < 2:
-        print("使用方法:")
-        print(f"  python3 {sys.argv[0]} <开庭笔录文件路径> [输出文件路径]")
-        print("\n示例:")
-        print(f"  python3 {sys.argv[0]} /path/to/hearing_transcript.txt")
-        print(f"  python3 {sys.argv[0]} /path/to/hearing_transcript.txt output.txt")
-        print("\n说明:")
-        print("  - 开庭笔录文件：必须是txt格式")
-        print("  - 输出文件：可选，默认保存在开庭笔录同目录")
-        print("  - 参考模板：固定使用 判决书案件事实部分模板.txt（通用民事判决书写作模板）")
+    parser = argparse.ArgumentParser(
+        description="根据开庭笔录生成判决书案件事实部分",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+示例:
+  # 使用远程API（默认）
+  python3 %(prog)s /path/to/hearing.txt
+
+  # 使用本地vLLM服务
+  python3 %(prog)s /path/to/hearing.txt --local
+
+  # 指定输出文件
+  python3 %(prog)s /path/to/hearing.txt -o output.txt --local
+
+说明:
+  - 开庭笔录文件：必须是txt格式
+  - 输出文件：可选，默认保存在开庭笔录同目录
+  - 参考模板：固定使用 判决书案件事实部分模板.txt
+  - 本地服务需先启动：/home/titanrtx/start_glm4_vllm.sh
+        """
+    )
+
+    parser.add_argument("hearing_file", help="开庭笔录文件路径（txt格式）")
+    parser.add_argument("-o", "--output", help="输出文件路径（可选）", default=None)
+
+    # API选择参数（互斥组）
+    api_group = parser.add_mutually_exclusive_group()
+    api_group.add_argument(
+        "--local", "-l",
+        action="store_true",
+        help=f"使用本地vLLM服务 ({API_CONFIGS['local']['description']})"
+    )
+    api_group.add_argument(
+        "--remote", "-r",
+        action="store_true",
+        help=f"使用远程API（默认）({API_CONFIGS['remote']['description']})"
+    )
+
+    args = parser.parse_args()
+
+    if not os.path.exists(args.hearing_file):
+        print(f"错误: 开庭笔录文件不存在 - {args.hearing_file}")
         sys.exit(1)
 
-    hearing_file = sys.argv[1]
-    output_file = sys.argv[2] if len(sys.argv) > 2 else None
-
-    if not os.path.exists(hearing_file):
-        print(f"错误: 开庭笔录文件不存在 - {hearing_file}")
-        sys.exit(1)
+    # 选择API配置
+    if args.local:
+        config = API_CONFIGS["local"]
+        print(f"📍 使用本地API: {config['description']}")
+    else:
+        config = API_CONFIGS["remote"]
+        print(f"🌐 使用远程API: {config['description']}")
 
     # 创建生成器并运行
     generator = HearingFactsGenerator(
-        api_url=settings.LLM_API_URL,
-        model=settings.LLM_MODEL
+        api_url=config["api_url"],
+        model=config["model"]
     )
 
-    generator.run(hearing_file, output_file)
+    generator.run(args.hearing_file, args.output)
 
 
 if __name__ == "__main__":

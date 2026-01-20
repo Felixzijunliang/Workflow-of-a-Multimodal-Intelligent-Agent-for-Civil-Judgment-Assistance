@@ -1,70 +1,175 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+统一配置管理模块
+所有配置项集中管理，支持环境变量和 .env 文件
+"""
+
 import os
 from pathlib import Path
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from typing import Optional
 
-class Settings(BaseSettings):
-    # 项目根目录
-    BASE_DIR: Path = Path(__file__).resolve().parent
-    
-    # --- LLM 服务配置 ---
-    # 远程 LLM 地址
-    LLM_API_URL: str = "http://104.224.158.247:8007/v1"
-    LLM_MODEL: str = "glm-4-9b-chat-tool-enabled"
-    
-    # --- RAG 服务配置 ---
-    # RAG 服务监听地址 (0.0.0.0 允许外部访问)
-    RAG_HOST: str = "0.0.0.0"
-    # RAG 服务监听端口
-    RAG_PORT: int = 8000
-    # 其他服务调用 RAG 时使用的基础 URL
-    RAG_API_BASE_URL: str = "http://localhost:8000"
-    
-    # --- 向量数据库 (Qdrant) ---
-    # Qdrant 存储路径 (本地模式). 如果设置了此项，优先使用本地模式
-    QDRANT_PATH: str | None = None
-    # Qdrant 服务器地址 (服务器模式)
-    QDRANT_HOST: str = "localhost"
-    # Qdrant 服务器端口
-    QDRANT_PORT: int = 6333
-    # 集合名称
-    COLLECTION_NAME: str = "law_knowledge"
-    
-    # --- 路径配置 ---
-    # 数据根目录 (用于替换 /home/titanrtx/lzj/layer 等硬编码路径)
-    # 默认指向项目根目录，可通过环境变量修改为实际数据盘路径
-    DATA_ROOT_DIR: Path = BASE_DIR
-    
-    # 判决书模板文件路径 (相对于 DATA_ROOT_DIR 或绝对路径)
-    JUDGMENT_TEMPLATE_PATH: str = "判决书案件事实部分模板.txt"
-    
-    # 民法典文件路径
-    CIVIL_CODE_PDF_PATH: str = "中华人民共和国民法典.pdf"
-    
-    # --- 其他 ---
-    # HuggingFace 镜像站
-    HF_ENDPOINT: str = "https://hf-mirror.com"
+# 尝试加载 .env 文件（如果 python-dotenv 可用）
+try:
+    from dotenv import load_dotenv
+    # 加载项目根目录的 .env 文件
+    env_path = Path(__file__).parent / '.env'
+    if env_path.exists():
+        load_dotenv(env_path)
+        print(f"✓ 已加载配置文件: {env_path}")
+except ImportError:
+    # python-dotenv 未安装，仅使用环境变量
+    pass
 
-    # 自动加载 .env 文件
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    def get_template_path(self) -> Path:
-        """获取模板的绝对路径"""
-        path = Path(self.JUDGMENT_TEMPLATE_PATH)
-        if path.is_absolute():
-            return path
-        return self.DATA_ROOT_DIR / path
+def get_env(key: str, default: str = None) -> Optional[str]:
+    """获取环境变量，支持空字符串转换为 None"""
+    value = os.getenv(key, default)
+    if value == '':
+        return None
+    return value
 
-    def get_civil_code_path(self) -> Path:
-        """获取民法典 PDF 的绝对路径"""
-        path = Path(self.CIVIL_CODE_PDF_PATH)
-        if path.is_absolute():
-            return path
-        return self.DATA_ROOT_DIR / path
 
-    def get_qdrant_client_args(self) -> dict:
-        """获取 QdrantClient 的初始化参数"""
-        if self.QDRANT_PATH:
-            return {"path": self.QDRANT_PATH}
-        return {"host": self.QDRANT_HOST, "port": self.QDRANT_PORT}
+def get_env_bool(key: str, default: bool = False) -> bool:
+    """获取布尔类型环境变量"""
+    value = os.getenv(key, str(default)).lower()
+    return value in ('true', '1', 'yes', 'on')
 
-settings = Settings()
+
+def get_env_int(key: str, default: int) -> int:
+    """获取整数类型环境变量"""
+    try:
+        return int(os.getenv(key, str(default)))
+    except ValueError:
+        return default
+
+
+# =============================================================================
+# LLM 服务配置
+# =============================================================================
+
+# GLM-4 / vLLM API 配置
+LLM_BASE_URL = get_env('LLM_BASE_URL', 'http://127.0.0.1:8007/v1')
+LLM_MODEL = get_env('LLM_MODEL', 'glm-4-9b-chat-tool-enabled')
+
+# Ollama API 配置（用于 qwen3 等本地模型）
+OLLAMA_URL = get_env('OLLAMA_URL', 'http://127.0.0.1:11434')
+OLLAMA_MODEL = get_env('OLLAMA_MODEL', 'qwen3:14b')
+
+
+# =============================================================================
+# RAG 服务配置
+# =============================================================================
+
+# RAG API 服务地址（统一使用 8000 端口）
+RAG_API_HOST = get_env('RAG_API_HOST', '127.0.0.1')
+RAG_API_PORT = get_env_int('RAG_API_PORT', 8000)
+RAG_BASE_URL = get_env('RAG_BASE_URL', f'http://{RAG_API_HOST}:{RAG_API_PORT}')
+
+
+# =============================================================================
+# Qdrant 向量数据库配置
+# =============================================================================
+
+# 本地存储路径（优先使用，设为空字符串则使用远程服务）
+QDRANT_PATH = get_env('QDRANT_PATH', './qdrant_storage')
+
+# 远程 Qdrant 服务配置（当 QDRANT_PATH 为空时使用）
+QDRANT_HOST = get_env('QDRANT_HOST', 'localhost')
+QDRANT_PORT = get_env_int('QDRANT_PORT', 6333)
+
+# 向量集合名称
+COLLECTION_NAME = get_env('COLLECTION_NAME', 'law_knowledge')
+
+
+# =============================================================================
+# Embedding 模型配置
+# =============================================================================
+
+# HuggingFace 镜像源（解决国内网络问题）
+HF_ENDPOINT = get_env('HF_ENDPOINT', 'https://hf-mirror.com')
+
+# Embedding 模型名称
+EMBEDDING_MODEL = get_env('EMBEDDING_MODEL', 'BAAI/bge-m3')
+
+# HuggingFace 模型缓存目录（使用项目本地缓存）
+HF_HOME = get_env('HF_HOME', str(Path(__file__).parent / '.huggingface'))
+
+# 设置 HuggingFace 环境变量
+if HF_ENDPOINT:
+    os.environ['HF_ENDPOINT'] = HF_ENDPOINT
+if HF_HOME:
+    os.environ['HF_HOME'] = HF_HOME
+    os.environ['HUGGINGFACE_HUB_CACHE'] = str(Path(HF_HOME) / 'hub')
+    os.environ['TRANSFORMERS_CACHE'] = str(Path(HF_HOME) / 'hub')
+
+# 设置离线模式（如果本地有缓存则不联网）
+HF_OFFLINE = get_env_bool('HF_OFFLINE', False)
+if HF_OFFLINE:
+    os.environ['HF_HUB_OFFLINE'] = '1'
+    os.environ['TRANSFORMERS_OFFLINE'] = '1'
+
+
+# =============================================================================
+# OCR 服务配置（支持容器环境）
+# =============================================================================
+
+# OCR 服务地址（如果使用远程 OCR 服务）
+# 容器内访问宿主机可用: host.docker.internal 或具体 IP
+OCR_SERVICE_URL = get_env('OCR_SERVICE_URL', None)
+
+# PaddleOCR 语言设置
+OCR_LANG = get_env('OCR_LANG', 'ch')
+
+
+# =============================================================================
+# 通用配置
+# =============================================================================
+
+# 项目根目录
+PROJECT_ROOT = Path(__file__).parent
+
+# 调试模式
+DEBUG = get_env_bool('DEBUG', False)
+
+
+# =============================================================================
+# 辅助函数
+# =============================================================================
+
+def get_qdrant_client_args() -> dict:
+    """
+    获取 Qdrant 客户端初始化参数
+    优先使用本地存储，如果 QDRANT_PATH 为空则使用远程服务
+    """
+    if QDRANT_PATH:
+        return {'path': QDRANT_PATH}
+    else:
+        return {'host': QDRANT_HOST, 'port': QDRANT_PORT}
+
+
+def print_config():
+    """打印当前配置信息（用于调试）"""
+    print("=" * 60)
+    print("当前配置信息")
+    print("=" * 60)
+    print(f"LLM_BASE_URL:    {LLM_BASE_URL}")
+    print(f"LLM_MODEL:       {LLM_MODEL}")
+    print(f"OLLAMA_URL:      {OLLAMA_URL}")
+    print(f"OLLAMA_MODEL:    {OLLAMA_MODEL}")
+    print(f"RAG_BASE_URL:    {RAG_BASE_URL}")
+    print(f"QDRANT_PATH:     {QDRANT_PATH or '(使用远程服务)'}")
+    print(f"QDRANT_HOST:     {QDRANT_HOST}")
+    print(f"QDRANT_PORT:     {QDRANT_PORT}")
+    print(f"COLLECTION_NAME: {COLLECTION_NAME}")
+    print(f"HF_ENDPOINT:     {HF_ENDPOINT}")
+    print(f"HF_HOME:         {HF_HOME}")
+    print(f"HF_OFFLINE:      {HF_OFFLINE}")
+    print(f"EMBEDDING_MODEL: {EMBEDDING_MODEL}")
+    print(f"OCR_SERVICE_URL: {OCR_SERVICE_URL or '(使用本地 PaddleOCR)'}")
+    print(f"DEBUG:           {DEBUG}")
+    print("=" * 60)
+
+
+if __name__ == "__main__":
+    print_config()

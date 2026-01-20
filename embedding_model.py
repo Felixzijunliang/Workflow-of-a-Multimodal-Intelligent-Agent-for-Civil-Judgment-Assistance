@@ -2,30 +2,56 @@
 BGE-M3 Embedding模型加载和使用模块
 用于法律文本的向量化
 """
+import os
+from pathlib import Path
+
+# 在导入其他库之前设置环境变量
+# 导入统一配置（会自动设置 HF 相关环境变量）
+import settings
+
 from sentence_transformers import SentenceTransformer
 import torch
 from typing import List, Union
 import numpy as np
-import os
-from settings import settings
 
-# 配置 HuggingFace 镜像源（解决网络问题）
-os.environ['HF_ENDPOINT'] = settings.HF_ENDPOINT
+
+def _get_local_model_path() -> str:
+    """获取本地模型缓存路径"""
+    # 检查项目内的 .huggingface 缓存
+    local_cache = Path(settings.HF_HOME) / 'hub' / 'models--BAAI--bge-m3'
+    if local_cache.exists():
+        # 查找 snapshots 目录中的模型
+        snapshots_dir = local_cache / 'snapshots'
+        if snapshots_dir.exists():
+            # 遍历 snapshots，找到包含 modules.json 的目录（完整的 sentence-transformers 模型）
+            for snapshot in snapshots_dir.iterdir():
+                if snapshot.is_dir() and (snapshot / 'modules.json').exists():
+                    model_path = str(snapshot)
+                    print(f"使用本地模型缓存: {model_path}")
+                    return model_path
+    return None
 
 
 class BGEEmbedding:
-    def __init__(self, model_name: str = "BAAI/bge-m3", device: str = None):
+    def __init__(self, model_name: str = None, device: str = None):
         """
         初始化BGE-M3 Embedding模型
 
         Args:
-            model_name: 模型名称，默认为 BAAI/bge-m3
+            model_name: 模型名称或本地路径，默认从 settings 读取
             device: 设备选择，None则自动选择GPU/CPU
         """
         if device is None:
             self.device = "cuda" if torch.cuda.is_available() else "cpu"
         else:
             self.device = device
+
+        # 优先使用本地缓存
+        local_path = _get_local_model_path()
+        if local_path and settings.HF_OFFLINE:
+            model_name = local_path
+        else:
+            model_name = model_name or settings.EMBEDDING_MODEL
 
         print(f"正在加载BGE-M3模型到 {self.device}...")
         self.model = SentenceTransformer(model_name, device=self.device)
@@ -84,12 +110,12 @@ class BGEEmbedding:
 # 单例模式，避免重复加载模型
 _embedding_model = None
 
-def get_embedding_model(model_name: str = "BAAI/bge-m3", device: str = None) -> BGEEmbedding:
+def get_embedding_model(model_name: str = None, device: str = None) -> BGEEmbedding:
     """
     获取全局Embedding模型实例（单例模式）
 
     Args:
-        model_name: 模型名称
+        model_name: 模型名称，默认从 settings 读取
         device: 设备选择
 
     Returns:
@@ -135,5 +161,5 @@ if __name__ == "__main__":
     print(f"\n与各文本的相似度:")
     for i, (text, sim) in enumerate(zip(test_texts, similarities)):
         print(f"{i+1}. 相似度: {sim:.4f} - {text[:30]}...")
-    
+
     print("\n测试完成!")

@@ -14,7 +14,9 @@ import json
 import requests
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
-from settings import settings
+
+# 导入统一配置
+import settings
 
 
 class LegalAssistantService:
@@ -22,28 +24,28 @@ class LegalAssistantService:
 
     def __init__(
         self,
-        llm_api_url: str = settings.LLM_API_URL,
-        llm_model: str = settings.LLM_MODEL,
-        rag_api_url: str = settings.RAG_API_BASE_URL
+        llm_api_url: str = None,
+        llm_model: str = None,
+        rag_api_url: str = None
     ):
         """
         初始化服务
 
         Args:
-            llm_api_url: GLM4 API 地址（远程服务器 vLLM）
-            llm_model: 模型名称
-            rag_api_url: RAG 系统 API 地址
+            llm_api_url: GLM4 API 地址（默认从 settings 读取）
+            llm_model: 模型名称（默认从 settings 读取）
+            rag_api_url: RAG 系统 API 地址（默认从 settings 读取）
         """
-        self.llm_api_url = llm_api_url
-        self.llm_model = llm_model
-        self.rag_api_url = rag_api_url
+        self.llm_api_url = llm_api_url or settings.LLM_BASE_URL
+        self.llm_model = llm_model or settings.LLM_MODEL
+        self.rag_api_url = rag_api_url or settings.RAG_BASE_URL
 
         print("=" * 80)
         print("法律辅助判案服务初始化")
         print("=" * 80)
-        print(f"LLM API: {llm_api_url}")
-        print(f"LLM 模型: {llm_model}")
-        print(f"RAG API: {rag_api_url}")
+        print(f"LLM API: {self.llm_api_url}")
+        print(f"LLM 模型: {self.llm_model}")
+        print(f"RAG API: {self.rag_api_url}")
         print("=" * 80)
 
     def read_case_materials(self, case_dir: str) -> Dict:
@@ -605,10 +607,10 @@ def main():
         print("  1. 使用 LLM 智能识别案件核心矛盾点")
         print("  2. 调用 RAG 系统检索相关民法典条文")
         print("  3. 生成专业的辅助判案建议")
-        print("\n可选环境变量:")
-        print(f"  LLM_API_URL - GLM4 API 地址 (默认: {settings.LLM_API_URL})")
-        print(f"  LLM_MODEL - 模型名称 (默认: {settings.LLM_MODEL})")
-        print(f"  RAG_API_URL - RAG API 地址 (默认: {settings.RAG_API_BASE_URL})")
+        print("\n配置说明:")
+        print("  配置文件: .env（可从 .env.example 复制）")
+        print(f"  当前 LLM API: {settings.LLM_BASE_URL}")
+        print(f"  当前 RAG API: {settings.RAG_BASE_URL}")
         sys.exit(1)
 
     case_dir = sys.argv[1]
@@ -617,18 +619,8 @@ def main():
         print(f"错误: 目录不存在 - {case_dir}")
         sys.exit(1)
 
-    # 从环境变量读取配置（如果没有设置则使用远程服务器）
-    llm_api_url = settings.LLM_API_URL
-    llm_model = settings.LLM_MODEL
-    rag_api_url = settings.RAG_API_BASE_URL
-
-    # 创建服务并运行
-    service = LegalAssistantService(
-        llm_api_url=llm_api_url,
-        llm_model=llm_model,
-        rag_api_url=rag_api_url
-    )
-
+    # 创建服务并运行（使用统一配置）
+    service = LegalAssistantService()
     service.generate_judgment_assistance(case_dir)
 
 
