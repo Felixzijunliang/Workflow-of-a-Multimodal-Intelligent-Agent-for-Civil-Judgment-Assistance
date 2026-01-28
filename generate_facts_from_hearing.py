@@ -14,9 +14,9 @@ from pathlib import Path
 # API配置
 API_CONFIGS = {
     "remote": {
-        "api_url": "http://104.224.158.247:8007/v1",
+        "api_url": "你的llm地址",
         "model": "glm-4-9b-chat-tool-enabled",
-        "description": "远程服务器 (104.224.158.247:8007)"
+        "description": "远程服务器 "
     },
     "local": {
         "api_url": "http://localhost:8000/v1",
@@ -29,11 +29,11 @@ API_CONFIGS = {
 class HearingFactsGenerator:
     """基于开庭笔录的案件事实生成器"""
 
-    def __init__(self, api_url="http://104.224.158.247:8007/v1", model="glm-4-9b-chat-tool-enabled"):
+    def __init__(self, api_url="你的llm地址", model="glm-4-9b-chat-tool-enabled"):
         self.api_url = api_url
         self.model = model
         # 参考模板路径（通用民事判决书案件事实撰写模板）
-        self.reference_template_path = Path("/home/titanrtx/lzj/lawyer/判决书案件事实部分模板.txt")
+        self.reference_template_path = Path("你的模板地址")
         # 断点保存文件路径
         self._checkpoint_file = None
 
